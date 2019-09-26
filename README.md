@@ -5,3 +5,7 @@ Materials (code &amp; data) for the ODSC West 2019 workshop: 'From Stored Data T
 + R  
 + Python  
 + LaTeX
+
+## Automated Reports ...
++ ... using RMarkdown
++ ... using Jupyter Notebooks
