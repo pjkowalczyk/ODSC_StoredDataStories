@@ -10,8 +10,8 @@ mixing code, text, results, figures & explanations into one seamless document / 
 + **interactivity**
 + Customizing / branding templates
 + Building dashboards
-+ Automated reports ...
-... using RMarkdown
++ Automated reports ...  
+... using RMarkdown  
 ... using Jupyter Notebooks
 
 ## Software
