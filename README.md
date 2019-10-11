@@ -23,6 +23,10 @@ mixing code, text, results, figures & explanations into one seamless document / 
 
 ## Outline  
 + Building a narrative's **ground truth**
++ Preparing for code / peer review  
++ HTML presentations  
++ PDF documents  
++ Posters / dashboards / ...  
 
 ## Software
 + R  
