@@ -2,7 +2,7 @@
 Materials (code &amp; data) for the ODSC West 2019 workshop: 'From Stored Data To Data Stories: Building Data Narratives With Open-source Tools'
 
 ## Why *data narratives*?  
-+ **Scenario** The machine learning campaign is nearing its conclusion. Data has been collected and curated. Features have been engineered. Multiple models have been built and evaluated.
++ The machine learning campaign is nearing its conclusion. Data has been collected and curated. Features have been engineered. Multiple models have been built and evaluated.
 + Now it's time to communicate the details, conclusions, and actionable insights that are consequences of the machine learning campaign.  
 + There are multiple audiences: fellow data scientists who are as interested in the mechanics of the machine learning campaign as they are in the outcome; data engineers who might be tasked with putting the models into production; managers and customers whose main interest is in the outcome, and how the results might be utilized.  
 + The purpose of a data narrative is communication, *e.g.,* a **notebook** that mixes code, text, results, figures, and explanations into one seamless document; an **HTML** page; a **document** suitable for publication.  
