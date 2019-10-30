@@ -1,0 +1,181 @@
+---
+title: "Water Solubility"
+author: "Paul J. Kowalczyk"
+date: "`r Sys.Date()`"
+output:
+  powerpoint_presentation:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+suppressPackageStartupMessages(library(knitr))
+knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_chunk$set(echo = TRUE)
+suppressPackageStartupMessages(library(tidyverse))
+suppressPackageStartupMessages(library(magrittr))
+suppressPackageStartupMessages(library(caret))
+suppressPackageStartupMessages(library(ggplot2))
+suppressPackageStartupMessages(library(ggthemes))
+suppressPackageStartupMessages(library(jtools))
+suppressPackageStartupMessages(library(randomForest))
+```
+## The ODSC Logo
+
+![](graphics/odsc.jpg)
+... and a link to [ODSC West](https://odsc.com/california/)
+
+## Read Data
+
+```{r read_data, echo = TRUE, warnings = FALSE, cache = TRUE}
+df <-
+  read.csv('data/water_solubility.csv',
+           header = TRUE,
+           stringsAsFactors = FALSE) %>%
+  na.omit()
+
+head(df[sample(nrow(df), 10), ])
+```
+
+## Distribution of Endpoint Values  
+
+```{r endpoint_distribution, echo = TRUE, cache = TRUE, fig.height = 3.0}
+LogMolar <-
+  ggplot(df, aes(LogMolar, stat(density))) +
+  geom_histogram(binwidth = 0.25, color = 'white', fill = 'blue') +
+  theme(legend.position = "none") +
+  ggthemes::theme_hc()
+LogMolar
+```
+
+## Build training and test sets
+
+ + stratified data partition: LogMolar  
+ + 80% train / 20% test
+
+```{r train_test, echo = FALSE, cache = TRUE}
+inTrain <- caret::createDataPartition(df$LogMolar, p = 0.8, list = FALSE)
+train <- df[inTrain, ]
+test <- df[-inTrain, ]
+
+X_train <- train[ , 3:ncol(train)]
+y_train <- train[ , 2] %>% data.frame()
+colnames(y_train) <- 'LogMolar'
+X_test <- test[ , 3:ncol(test)]
+y_test <- test[ , 2] %>% data.frame()
+colnames(y_test) <- 'LogMolar'
+
+TRAIN <- train %>%
+  mutate(set = 'train')
+TEST <- test %>%
+  mutate(set = 'test')
+
+LogMolar <- rbind(TRAIN, TEST)
+
+LogMolar_train_test <-
+  ggplot(LogMolar, aes(LogMolar, stat(density), colour = set)) +
+  geom_freqpoly(binwidth = 0.25, size = 1) +
+  scale_color_manual(values = c('#EB6B4A', '#0B3087')) +
+  theme(legend.position = "none") +
+  ggthemes::theme_hc()
+LogMolar_train_test
+```
+
+## Data Curation: near-zero variance  
+
+Initial number of variables in the dataset: `r dim(X_train)[2]`.
+
+The variables with near-zero variance are:
+```{r ID_nzv, echo = TRUE, cache = TRUE}
+nzv <- caret::nearZeroVar(X_train, freqCut = 100/0)
+names(df[ , nzv])
+```
+
+Remove the near-zero variance variables
+```{r remove_nzv, echo = TRUE, cache = TRUE}
+X_train <- X_train[ , -nzv]
+X_test <- X_test[ , -nzv]
+```
+Number of variables in the dataset, following removal of those with near zero variance: `r dim(X_train)[2]`
+
+## Data Curation: highly correlated variables
+
+For all pairs of variables whose pairwise correlation exceeds 0.85, remove that variable whose mean correlation to all other variables is the greater.
+
+Identify highly correlated variables
+```{r correlations, echo = TRUE, cache = TRUE}
+allCorrelations <- cor(X_train)
+highCorr <- findCorrelation(allCorrelations, cutoff = 0.85)
+```
+
+```{r all_correlations, echo = FALSE, cache = TRUE, eval = FALSE}
+allCorrelations <- cor(X_train)
+corrplot::corrplot(allCorrelations, order = 'hclust')
+```
+
+```{r highly_correlated, echo = FALSE, cache = TRUE}
+highCorr <- findCorrelation(allCorrelations, cutoff = 0.85)
+highCorrNames <- names(X_train[ , highCorr])
+```
+
+Remove highly correlated variables
+```{r remove_highly_correlated, echo = TRUE, cache = TRUE}
+X_train <- X_train[ , -highCorr]
+X_test <- X_test[ , -highCorr]
+```
+Having removed the highly correlated variables, there are `r dim(X_train)[2]` variables remaining. 
+
+```{r plot_uncorrelated, echo = FALSE, cache = TRUE, eval = FALSE}
+lowCorrelations <- cor(X_train)
+corrplot::corrplot(lowCorrelations, order = 'hclust')
+```
+
+## Data Curation: names of removed variables (due to high correlation)
+```{r removedHighCorrelation, echo = FALSE, cache = TRUE}
+highCorrNames
+```
+
+## Data Curation: Linear combinations
+
+Identify variables that are a linear combination
+```{r linearCombo, echo = TRUE, cache = TRUE}
+comboInfo <- findLinearCombos(X_train)
+names(X_train[ , comboInfo$remove])
+```
+
+Remove those variables that are a linear combination
+```{r remove_linearCombo, echo = TRUE, cache = TRUE}
+X_train <- X_train[ , -comboInfo$remove]
+X_test <- X_test[ , -comboInfo$remove]
+```
+
+Having removed variables that are a linear combination, there are `r dim(X_train)[2]` variables in the dataset.
+
+## Principal Components Analysis
+
+```{r pca, echo = FALSE, cache = TRUE}
+preProcValues <- preProcess(X_train, method = c("center", "scale"))
+
+X_trainTransformed <- predict(preProcValues, X_train)
+X_testTransformed <- predict(preProcValues, X_test)
+
+pca <- preProcess(X_trainTransformed, method = c('pca'))
+X_train_pca <- predict(pca, X_trainTransformed)
+X_test_pca <- predict(pca, X_testTransformed)
+
+train_pca <- X_train_pca %>%
+  select(PC1, PC2) %>%
+  mutate(dataset = 'train')
+test_pca <- X_test_pca %>%
+  select(PC1, PC2) %>%
+  mutate(dataset = 'test')
+pcaPts <- rbind(train_pca, test_pca)
+
+LogMolar_PC <-
+  ggplot(pcaPts, aes(PC1, PC2, colour = factor(dataset))) +
+  geom_point(aes(shape = factor(dataset))) +
+  labs(title = 'WS PCA') +
+  scale_color_manual(values = c('#EB6B4A', '#0B3087')) +
+  theme(legend.position="none") +
+  ggthemes::theme_tufte()
+LogMolar_PC
+```

@@ -1,0 +1,80 @@
+---
+title: "From Stored Data to Data Stories: Building Data Narratives with Open Source Tools"
+author: "Paul J. Kowalczyk"
+date: "`r Sys.Date()`"
+output:
+  beamer_presentation
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(knitr)
+```
+
+---  
+
+**From Stored Data to Data Stories:  
+Building Data Narratives with Open Source Tools**  
+  
+ 
+ODSC West 2019  
+9 AM Wednesday, October 30  
+  
+  
+Paul J Kowalczyk, PhD  
+Senior Data Scientist  
+Solvay / Bristol Research & Innovation Centre  
+paul.kowalczyk@solvay.com  
+  
+**Code & Data**:  
+[https://github.com/pjkowalczyk/StoredDataStories](https://github.com/pjkowalczyk/StoredDataStories)
+
+## Outline
+
+```{r, echo = FALSE}
+Time <- c('9:00-9:15', '9:15-9:45', '9:45-10:00', '10:00-10:30', '10:30-10-45', '10:45-11:15', '11:15-11:30', '11:30-12:00', '12:00-12:15', '12:15-12:30')
+Activity <- c('Introduction', 'Ground Truth', 'Practicum I', 'Notebooks', 'Practicum II', 'Presentations', 'Parcticum III', 'Documents', 'Practicum IV', 'Wrap-Up')
+schedule <- data.frame(Time, Activity)
+kable(schedule)
+```
+
+## Workflow
+
+![](graphics/MLworkflow.jpg)
+
+## Drew Conway Data Science Venn Diagram
+
+![](graphics/ConwayDataScienceVennDiagram.jpg)
+
+## The Data Science Venn Diagram for this Workshop
+
+![](graphics/AnonDataScienceVennDiagram.jpg)
+
+## Water Solubility
+
+![](graphics/WS_LogMolar_Histogram.jpg)
+
+## Train / Test Split
+
+![](graphics/WS_LogMolar_TrainTest.jpg)
+
+## Full Correlations
+
+![](graphics/WS_fullCorrelation.jpg)  
+
+## Reduced Correlations  
+
+![](graphics//WS_reducedCorrelation.jpg)
+
+## Case Study
+
+Build predictive models for  
+
+ + **water solubility** (regression)  
+ 
+    + OECD Test No. 105  
+    
+ + **biodegradability** (classification)  
+ 
+    + OECD Test No. 301  
+    

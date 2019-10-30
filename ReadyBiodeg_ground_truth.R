@@ -184,7 +184,7 @@ fourfoldplot(cm$table)
 
 ## k-nearest neighbors
 
-knnModel <- train(
+knnModelClass <- train(
   Ready_Biodeg ~ .,
   data = trainSet,
   method = 'knn',
@@ -192,7 +192,7 @@ knnModel <- train(
   trControl = fitControl
 )
 
-y_predict <- predict(knnModel, newdata = X_testTransformed) %>%
+y_predict <- predict(knnModelClass, newdata = X_testTransformed) %>%
   data.frame()
 colnames(y_predict) <- c('Predicted')
 
@@ -204,7 +204,7 @@ cm <- confusionMatrix(data2plot$Predicted, data2plot$Ready_Biodeg, positive = 'R
 cm
 fourfoldplot(cm$table)
 
-y_predict <- predict(knnModel, newdata = X_trainTransformed) %>%
+y_predict <- predict(knnModelClass, newdata = X_trainTransformed) %>%
   data.frame()
 colnames(y_predict) <- c('Predicted')
 
@@ -218,9 +218,9 @@ fourfoldplot(cm$table)
 
 ## Random Forests
 
-rf <- randomForest(Ready_Biodeg ~ ., data = trainSet, ntree = 250, nodesize = 7)
+rfClass <- randomForest(Ready_Biodeg ~ ., data = trainSet, ntree = 250, nodesize = 7)
 
-y_predict <- predict(rf, newdata = X_testTransformed) %>%
+y_predict <- predict(rfClass, newdata = X_testTransformed) %>%
   data.frame()
 colnames(y_predict) <- c('Predicted')
 
@@ -232,7 +232,7 @@ cm <- confusionMatrix(data2plot$Predicted, data2plot$Ready_Biodeg, positive = 'R
 cm
 fourfoldplot(cm$table)
 
-y_predict <- predict(rf, newdata = X_trainTransformed) %>%
+y_predict <- predict(rfClass, newdata = X_trainTransformed) %>%
   data.frame()
 colnames(y_predict) <- c('Predicted')
 

@@ -1,0 +1,83 @@
+---
+title: "ODSC Notebook"
+output: html_document
+---
+
+# Load libraries
+
+```{r}
+library(tidyverse)
+library(magrittr)
+library(caret)
+library(ggplot2)
+library(ggthemes)
+library(jtools)
+library(randomForest)
+```
+
+# read data
+
+```{r}
+df <-
+  read.csv('data/water_solubility.csv',
+           header = TRUE,
+           stringsAsFactors = FALSE) %>%
+  na.omit()
+```
+
+# review input data
+
+```{r}
+head(df[sample(nrow(df), 10), ])
+```
+
+# view distribution of endpoint values; save visualization
+
+```{r}
+LogMolar <-
+  ggplot(df, aes(LogMolar, stat(density))) +
+  # geom_freqpoly(binwidth = 0.25, size = 1) +
+  geom_histogram(binwidth = 0.25, color = 'white', fill = 'blue') +
+  theme(legend.position = "none") +
+  ggthemes::theme_hc()
+LogMolar
+```
+
+```{r}
+ggsave('graphics/WS_LogMolar_Histogram.jpg', plot = LogMolar)
+```
+
+```{r}
+inTrain <- caret::createDataPartition(df$LogMolar, p = 0.8, list = FALSE)
+train <- df[inTrain, ]
+test <- df[-inTrain, ]
+
+X_train <- train[ , 3:ncol(train)]
+y_train <- train[ , 2] %>% data.frame()
+colnames(y_train) <- 'LogMolar'
+X_test <- test[ , 3:ncol(test)]
+y_test <- test[ , 2] %>% data.frame()
+colnames(y_test) <- 'LogMolar'
+
+TRAIN <- train %>%
+  mutate(set = 'train')
+TEST <- test %>%
+  mutate(set = 'test')
+
+LogMolar <- rbind(TRAIN, TEST)
+
+LogMolar_train_test <-
+  ggplot(LogMolar, aes(LogMolar, stat(density), colour = set)) +
+  geom_freqpoly(binwidth = 0.25, size = 1) +
+  scale_color_manual(values = c('#EB6B4A', '#0B3087')) +
+  theme(legend.position = "none") +
+  ggthemes::theme_hc()
+LogMolar_train_test
+```
+
+```{r}
+ggsave('graphics/WS_LogMolar_TrainTest.jpg', plot = LogMolar_train_test)
+```
+
+
+
