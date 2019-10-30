@@ -1,0 +1,349 @@
+---
+title: "Water Solubility"
+author: "Paul J. Kowalczyk"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+suppressPackageStartupMessages(library(tidyverse))
+suppressPackageStartupMessages(library(magrittr))
+suppressPackageStartupMessages(library(caret))
+suppressPackageStartupMessages(library(ggplot2))
+suppressPackageStartupMessages(library(ggthemes))
+suppressPackageStartupMessages(library(jtools))
+suppressPackageStartupMessages(library(randomForest))
+```
+
+# Read data
+
+```{r read_data, echo = FALSE, warnings = FALSE, cache = TRUE}
+df <-
+  read.csv('data/water_solubility.csv',
+           header = TRUE,
+           stringsAsFactors = FALSE) %>%
+  na.omit()
+```
+
+## Review input data
+
+```{r review_input_data, echo = FALSE, cache = TRUE}
+head(df[sample(nrow(df), 10), ])
+# df
+```
+
+## View distribution of endpoint values
+
+```{r endpoint_distribution, echo = FALSE, cache = TRUE}
+LogMolar <-
+  ggplot(df, aes(LogMolar, stat(density))) +
+  # geom_freqpoly(binwidth = 0.25, size = 1) +
+  geom_histogram(binwidth = 0.25, color = 'white', fill = 'blue') +
+  theme(legend.position = "none") +
+  ggthemes::theme_hc()
+LogMolar
+```
+
+# Build training and test sets
+
+```{r train_test, echo = FALSE, cache = TRUE}
+inTrain <- caret::createDataPartition(df$LogMolar, p = 0.8, list = FALSE)
+train <- df[inTrain, ]
+test <- df[-inTrain, ]
+
+X_train <- train[ , 3:ncol(train)]
+y_train <- train[ , 2] %>% data.frame()
+colnames(y_train) <- 'LogMolar'
+X_test <- test[ , 3:ncol(test)]
+y_test <- test[ , 2] %>% data.frame()
+colnames(y_test) <- 'LogMolar'
+
+TRAIN <- train %>%
+  mutate(set = 'train')
+TEST <- test %>%
+  mutate(set = 'test')
+
+LogMolar <- rbind(TRAIN, TEST)
+
+LogMolar_train_test <-
+  ggplot(LogMolar, aes(LogMolar, stat(density), colour = set)) +
+  geom_freqpoly(binwidth = 0.25, size = 1) +
+  scale_color_manual(values = c('#EB6B4A', '#0B3087')) +
+  theme(legend.position = "none") +
+  ggthemes::theme_hc()
+LogMolar_train_test
+```
+
+# Curate data  
+The initial number of variables in the dataset is `r dim(X_train)[2]`.
+
+## Near-zero variance variables
+### Identify near-zero variance variables
+The variables with near-zero variance are:
+```{r ID_nzv, echo = FALSE, cache = TRUE}
+nzv <- caret::nearZeroVar(X_train, freqCut = 100/0)
+names(df[ , nzv])
+```
+
+### Remove the near-zero variance variables
+```{r remove_nzv, echo = FALSE, cache = TRUE}
+X_train <- X_train[ , -nzv]
+X_test <- X_test[ , -nzv]
+```
+There are `r dim(X_train)[2]` variables in the dataset, following removal of those with near zero variance.
+
+## Highly correlated variables
+First, plot the correlation matrix of **all** variables
+```{r all_correlations, echo = FALSE, cache = TRUE}
+allCorrelations <- cor(X_train)
+corrplot::corrplot(allCorrelations, order = 'hclust')
+```
+
+### Identify highly correlated variables
+```{r highly_correlated, echo = FALSE, cache = TRUE}
+highCorr <- findCorrelation(correlations, cutoff = 0.85)
+names(X_train[ , highCorr])
+```
+
+### Remove highly correlated variables
+```{r remove_highly_correlated, echo = FALSE, cache = TRUE}
+X_train <- X_train[ , -highCorr]
+X_test <- X_test[ , -highCorr]
+```
+Having removed the highly correlated variables, there are `r dim(X_train)[2]` variables remaining.  
+
+Plot the correlation matrix of the *uncorrelated* variables
+
+```{r plot_uncorrelated, echo = FALSE, cache = TRUE}
+lowCorrelations <- cor(X_train)
+corrplot::corrplot(lowCorrelations, order = 'hclust')
+```
+
+### Correlations {.tabset .tabset-fade .tabset-pills}
+
+#### All Variables
+```{r ALL, echo = FALSE, cache = TRUE}
+corrplot::corrplot(allCorrelations, order = 'hclust')
+```
+
+#### Low Correlated Variables
+```{r LOW, echo = FALSE, cache = TRUE}
+corrplot::corrplot(lowCorrelations, order = 'hclust')
+```
+
+## Linear combinations
+
+### Identify variables that are a linear combination
+```{r linearCombo, echo = FALSE, cache = TRUE}
+comboInfo <- findLinearCombos(X_train)
+names(X_train[ , comboInfo$remove])
+```
+
+### Remove those variables that are a linear combination
+```{r remove_linearCombo, echo = FALSE, cache = TRUE}
+X_train <- X_train[ , -comboInfo$remove]
+X_test <- X_test[ , -comboInfo$remove]
+```
+
+Having removed variables that are a linear combination, there are `r dim(X_train)[2]` variables in the dataset.
+
+## Center & scale descriptors
+
+```{r centerScale, echo = FALSE, cache = TRUE}
+preProcValues <- preProcess(X_train, method = c("center", "scale"))
+
+X_trainTransformed <- predict(preProcValues, X_train)
+X_testTransformed <- predict(preProcValues, X_test)
+```
+
+## PCA
+
+```{r pca, echo = FALSE, cache = TRUE}
+pca <- preProcess(X_trainTransformed, method = c('pca'))
+X_train_pca <- predict(pca, X_trainTransformed)
+X_test_pca <- predict(pca, X_testTransformed)
+
+train_pca <- X_train_pca %>%
+  select(PC1, PC2) %>%
+  mutate(dataset = 'train')
+test_pca <- X_test_pca %>%
+  select(PC1, PC2) %>%
+  mutate(dataset = 'test')
+pcaPts <- rbind(train_pca, test_pca)
+```
+
+### Plot 2nd principal component (y) versus 1st principal component (x)
+```{r pltPCA, echo = FALSE, cache = TRUE}
+LogMolar_PC <-
+  ggplot(pcaPts, aes(PC1, PC2, colour = factor(dataset))) +
+  geom_point(aes(shape = factor(dataset))) +
+  labs(title = 'WS PCA') +
+  scale_color_manual(values = c('#EB6B4A', '#0B3087')) +
+  theme(legend.position="none") +
+  ggthemes::theme_tufte()
+LogMolar_PC
+```
+
+# Models
+
+```{r cntrlParams, echo = FALSE, cache = TRUE}
+fitControl <- trainControl(## 5-fold CV
+  method = "repeatedcv",
+  repeats = 5)
+
+set.seed(42)
+```
+
+## Multiple linear regression
+
+```{r load_mlr_model, echo = TRUE, cache = TRUE}
+trainSet <- cbind(y_train, X_trainTransformed)
+
+# mlr <- train(LogMolar ~ .,
+#              data = trainSet,
+#              method = 'lm',
+#              trControl = fitControl)
+load('mlr.RData')
+```
+
+### Test data summary
+
+```{r mlr_modeling, echo = FALSE, cache = TRUE}
+y_predict <- predict(mlr, newdata = X_testTransformed) %>%
+  data.frame()
+colnames(y_predict) <- c('Predicted')
+
+data2plot <- cbind(y_test, y_predict)
+
+summary(lm(LogMolar ~ Predicted, data = data2plot))
+```
+
+### Test data 'summ'
+
+```{r mlr_test_summary, echo = FALSE, cache = TRUE}
+test_summ <- summ(lm(LogMolar ~ Predicted, data = data2plot))
+test_summ
+```
+
+### Plot results: test data
+```{r plot_test_results, echo = FALSE, cache = TRUE}
+LogMolar_mlr_test <-
+  ggplot(data2plot, aes(Predicted, LogMolar)) +
+  geom_point(colour = "blue", size = 2) +
+  coord_equal() +
+  # xlim(c(0, 3.5)) + ylim(c(0, 3.5)) +
+  geom_smooth(method = 'lm') +
+  labs(title = 'Multiple Linear Regression\n test dat') +
+  # subtitle = 'Multiple Linear Regression\n test data') +
+  ggthemes::theme_tufte()
+LogMolar_mlr_test <- LogMolar_mlr_test + geom_abline(intercept = 0,
+                                           slope = 1,
+                                           colour = 'red')
+LogMolar_mlr_test
+```
+
+### Plot residuals: test data
+
+```{r plot_test_residuals, echo = FALSE, cache = TRUE}
+data2plot$res <- resid(lm(LogMolar ~ Predicted, data = data2plot))
+
+LogMolar_mlr_res <-
+  ggplot(data2plot, aes(LogMolar, res)) +
+  geom_point(colour = "blue", size = 2) +
+  # coord_equal() +
+  # xlim(c(0, 3.5)) + ylim(c(0, 3.5)) +
+  # geom_smooth(method = 'lm') +
+  labs(title = 'Residual Plot') +
+  # subtitle = 'Multiple Linear Regression\n test data') +
+  geom_hline(yintercept = 0,
+             color = "red",
+             size = 1.5) +
+  ggthemes::theme_tufte()
+
+LogMolar_mlr_res_test <- LogMolar_mlr_res
+
+LogMolar_mlr_res
+```
+
+### Training data summary
+
+```{r mlr_modeling_train, echo = FALSE, cache = TRUE}
+y_predict <- predict(mlr, newdata = X_trainTransformed) %>%
+  data.frame()
+colnames(y_predict) <- c('Predicted')
+
+
+data2plot <- cbind(y_train, y_predict)
+
+summary(lm(LogMolar ~ Predicted, data = data2plot))
+```
+
+### Train data 'summ'
+
+```{r mlr_train_summary, echo = FALSE, cache = TRUE}
+train_summ <- summ(lm(LogMolar ~ Predicted, data = data2plot))
+train_summ
+```
+
+### Plot results: training data
+```{r plot_train_results, echo = FALSE, cache = TRUE}
+p <-
+  ggplot(data2plot, aes(Predicted, LogMolar)) +
+  geom_point(colour = "blue", size = 2) +
+  coord_equal() +
+  # xlim(c(0, 3.5)) + ylim(c(0, 3.5)) +
+  geom_smooth(method='lm') +
+  labs(title = 'LogMolar',
+       subtitle = 'Multiple Linear Regression\n training data') +
+  ggthemes::theme_tufte()
+p <- p + geom_abline(intercept = 0,
+                     slope = 1,
+                     colour = 'red')
+LogMolar_mlr_train <- p
+p
+```
+
+### Plot residuals: training data
+
+```{r plot_train_residuals, echo = FALSE, cache = TRUE}
+data2plot$res <- resid(lm(LogMolar ~ Predicted, data = data2plot))
+
+LogMolar_mlr_res <-
+  ggplot(data2plot, aes(LogMolar, res)) +
+  geom_point(colour = "blue", size = 2) +
+  # coord_equal() +
+  # xlim(c(0, 3.5)) + ylim(c(0, 3.5)) +
+  # geom_smooth(method = 'lm') +
+  labs(title = 'Residual Plot') +
+  # subtitle = 'Multiple Linear Regression\n test data') +
+  geom_hline(yintercept = 0,
+             color = "red",
+             size = 1.5) +
+  ggthemes::theme_tufte()
+
+LogMolar_mlr_res_train <- LogMolar_mlr_res
+
+LogMolar_mlr_res
+```
+
+### MLR Results {.tabset .tabset-fade .tabset-pills}
+
+#### Test Data Results Plot  
+
+```{r test_data_result_plot, echo = FALSE, cache = TRUE}
+LogMolar_mlr_test
+```
+
+#### Train Data Results Plot  
+
+```{r train_data_result_plot, echo = FALSE, cache = TRUE}
+LogMolar_mlr_train
+```
+
+
+
