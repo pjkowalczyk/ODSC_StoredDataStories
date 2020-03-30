@@ -37,7 +37,7 @@ mixing code, text, results, figures & explanations into one seamless document / 
 + Posters / dashboards / ...  
 
 ## Workshop Schedule  
-Time (minutes)          | Activity  
+Time (hrs:min)          | Activity  
 ------------- | -------------  
 00:00 - 00:15 | Introduction  
 00:15 - 00:45 | Ground Truth  
