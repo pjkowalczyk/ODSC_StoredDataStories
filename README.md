@@ -1,5 +1,5 @@
 # StoredDataStories
-Materials (code &amp; data) for the ODSC West 2019 workshop: 'From Stored Data To Data Stories: Building Data Narratives With Open-source Tools'
+Materials (code & data) for the ODSC East 2020 Virtual Conference workshop: 'Building Data Narratives: An End-to-End Machine Learning Practicum'
 
 ## Why *data narratives*?  
 + The machine learning campaign is nearing its conclusion. Data has been collected and curated. Features have been engineered. Multiple models have been built and evaluated.
@@ -37,18 +37,18 @@ mixing code, text, results, figures & explanations into one seamless document / 
 + Posters / dashboards / ...  
 
 ## Workshop Schedule  
-Time          | Activity  
+Time (minutes)          | Activity  
 ------------- | -------------  
-09:00 - 09:15 | Introduction  
-09:15 - 09:45 | Ground Truth  
-09:45 - 10:00 | Practicum I  
-10:00 - 10:30 | Notebooks  
-10:30 - 10:45 | Practicum II  
-10:45 - 11:15 | Presentations  
-11:15 - 11:30 | Practicum III
-11:30 - 12:00 | Documents  
-12:00 - 12:15 | Practicum IV  
-12:15 - 12:30 | Wrap-Up
+00:00 - 00:15 | Introduction  
+00:15 - 00:45 | Ground Truth  
+00:45 - 01:00 | Practicum I  
+01:00 - 01:30 | Notebooks  
+01:30 - 01:45 | Practicum II  
+01:45 - 02:15 | Presentations  
+02:15 - 02:30 | Practicum III
+02:30 - 03:00 | Documents  
+03:00 - 03:15 | Practicum IV  
+03:15 - 03:30 | Wrap-Up
 
 ## Software
 + R  
