@@ -1,0 +1,309 @@
+---
+title: 'ML: Daphnia'
+subtitle: '... narrative ground truth ...'
+output: pdf_document
+date: "`r Sys.Date()`"
+---
+
+```{r setup, echo = FALSE, message = FALSE, warning = FALSE}
+library(tidyverse)
+library(readxl)
+library(janitor)
+library(here)
+library(dplyr)
+library(reticulate)
+use_python("C:\\Users\\us16120\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Python 3.8")
+library(caret)
+library(ggplot2)
+library(ggthemes)
+library(corrplot)
+library(randomForest)
+library(e1071)
+library(hydroGOF)
+
+set.seed(42)
+```
+
+```{r access_data, message = FALSE, warning = FALSE}
+path_to_data <- here('data', 'Khan_Chemosphere_229_8.xlsx')
+
+df <-
+  readxl::read_xlsx(path_to_data, sheet = 'Daphnia Dataset')  %>%
+  data.frame() %>%
+  janitor::clean_names()
+
+names(df)
+
+df <- df %>%
+  select(cas_number, canonical_smiles, p_ec50_mol_l_daphnia) %>%
+  rename('CAS' = 'cas_number',
+         'SMILES' = 'canonical_smiles',
+         'pEC50' = 'p_ec50_mol_l_daphnia')
+
+head(df)
+```
+
+```{r}
+str(df)
+```
+
+```{python}
+import numpy as np
+import pandas as pd
+from rdkit import Chem
+from rdkit.Chem import Descriptors
+from rdkit.ML.Descriptors import MoleculeDescriptors
+from scipy import stats
+
+df = r.df
+df.head()
+
+nms = [x[0] for x in Descriptors._descList]
+calc = MoleculeDescriptors.MolecularDescriptorCalculator(nms)
+#for i in range(5):
+for i in range(len(df)):
+    try:
+        descrs = calc.CalcDescriptors(Chem.MolFromSmiles(df.iloc[i, 1]))
+        for x in range(len(descrs)):
+            df.at[i, str(nms[x])] = descrs[x]
+    except:
+        for x in range(len(descrs)):
+            df.at[i, str(nms[x])] = 'NaN'   
+            
+df = df.replace([np.inf, -np.inf], np.nan)
+df = df.dropna()
+df = df.reset_index(drop=True)
+
+df.head()
+df.shape
+```
+
+```{r}
+df <- py$df
+dim(df)
+```
+
+```{r}
+in_train <-
+  createDataPartition(df$pEC50
+                      , p = 0.8
+                      , list = FALSE)
+train <- df[in_train,] %>%
+  mutate(set = 'train') %>%
+  data.frame()
+test <- df[-in_train,] %>%
+  mutate(set = 'test') %>%
+  data.frame()
+```
+
+```{r}
+X_train <- train %>%
+  select(-CAS, -SMILES, -pEC50, -set) %>%
+  data.frame()
+dim(X_train)
+X_test <- test %>%
+  select(-CAS, -SMILES, -pEC50, -set) %>%
+  data.frame()
+dim(X_test)
+y_train <- train %>%
+  select(pEC50) %>%
+  data.frame()
+colnames(y_train) <- c('Observed')
+dim(y_train)
+y_test <- test %>%
+  select(pEC50) %>%
+  data.frame()
+dim(y_test)
+colnames(y_test) <- c('Observed')
+```
+
+```{r}
+data2plot <- rbind(train, test) %>%
+  data.frame()
+daphnia_train_test <-
+  ggplot(data2plot, aes(pEC50, stat(density), colour = set)) +
+  geom_freqpoly(binwidth = 1.0, size = 2) +
+  ggthemes::theme_tufte()
+daphnia_train_test
+```
+```{r}
+ggplot(data2plot, aes(x = pEC50, fill = set)) + geom_density(alpha = .3) +
+  ggthemes::theme_tufte()
+```
+
+```{r}
+ggsave('daphnia_train_test.png', daphnia_train_test, width = 4.0, height = 2.5, units = 'in')
+```
+
+```{r}
+dim(train)
+summary(train$pEC50)
+hist(train$pEC50)
+dim(test)
+summary(test$pEC50)
+hist(test$pEC50)
+```
+
+```{r}
+nzv <- nearZeroVar(X_train, freqCut = 100 / 0)
+names(X_train[ , nzv])
+X_train_nzv <- X_train[ , -nzv]
+X_test_nzv <- X_test[ , -nzv]
+```
+
+```{r}
+par(mfrow=c(1,2))
+
+correlations <- cor(X_train_nzv)
+corrplot(correlations, order = "hclust", tl.cex = 0.25)
+
+highCorr <- findCorrelation(correlations, cutoff = 0.8)
+names(X_train_nzv[ , highCorr])
+X_train_curated <- X_train_nzv[ , -highCorr]
+X_test_curated <- X_test_nzv[ , -highCorr]
+
+correlations <- cor(X_train_curated)
+corrplot(correlations, order = "hclust", tl.cex = 0.5)
+```
+
+```{r}
+names(X_train_curated)
+```
+
+## Random Forest
+
+```{r}
+trainSet <- cbind(y_train, X_train_curated) %>%
+  rename(pEC50 = Observed)
+testSet <- cbind(y_test, X_test_curated) %>%
+  rename(pEC50 = Observed)
+rfModel <- randomForest(
+  pEC50 ~ .,
+  data = trainSet,
+  importance = TRUE,
+  ntrees = 1000
+)
+print(rfModel)
+varImpPlot(rfModel, type = 1)
+
+y_predict <- predict(rfModel, newdata = X_test_curated) %>%
+  data.frame()
+colnames(y_predict) <- c('Predicted')
+
+data2plot <- cbind(y_test, y_predict)
+
+summary(lm(Observed ~ Predicted, data = data2plot))
+
+testRMSE = rmse(data2plot$Predicted, data2plot$Observed)
+
+p <-
+  ggplot(data2plot, aes(Predicted, Observed)) +
+  geom_point(colour = "blue", size = 2) +
+  coord_equal() +
+  # xlim(c(0, 3.5)) + ylim(c(0, 3.5)) +
+  geom_smooth(method = 'lm') +
+  labs(title = 'pEC50',
+       subtitle = 'Random Forest\n test data') +
+  ggthemes::theme_tufte()
+p <- p + geom_abline(intercept = 0,
+                     slope = 1,
+                     colour = 'red')
+p
+
+y_predict <- predict(rfModel, newdata = X_train_curated) %>%
+  data.frame()
+colnames(y_predict) <- c('Predicted')
+
+data2plot <- cbind(y_train, y_predict)
+
+summary(lm(Observed ~ Predicted, data = data2plot))
+
+trainRMSE = rmse(data2plot$Predicted, data2plot$Observed)
+
+p <-
+  ggplot(data2plot, aes(Predicted, Observed)) +
+  geom_point(colour = "blue", size = 2) +
+  coord_equal() +
+  # xlim(c(0, 3.5)) + ylim(c(0, 3.5)) +
+  geom_smooth(method='lm') +
+  labs(title = 'pEC50',
+       subtitle = 'Random Forest\n training data') +
+  ggthemes::theme_tufte()
+p <- p + geom_abline(intercept = 0,
+                     slope = 1,
+                     colour = 'red')
+p
+```
+
+## SVM regression
+
+```{r}
+svmModel = svm(pEC50 ~ .,
+  data = trainSet)
+
+print(svmModel)
+
+y_predict <- predict(svmModel, newdata = X_test_curated) %>%
+  data.frame()
+colnames(y_predict) <- c('Predicted')
+
+data2plot <- cbind(y_test, y_predict)
+
+summary(lm(Predicted ~ Observed, data = data2plot))
+
+## Calculate parameters of the SVR model
+
+# Find value of W
+test_W = t(svmModel$coefs) %*% svmModel$SV
+
+# Find value of b
+test_b = svmModel$rho
+
+testRMSE = rmse(data2plot$Predicted, data2plot$Observed)
+
+p <-
+  ggplot(data2plot, aes(Predicted, Observed)) +
+  geom_point(colour = "blue", size = 2) +
+  coord_equal() +
+  # xlim(c(0, 3.5)) + ylim(c(0, 3.5)) +
+  geom_smooth(method = 'lm') +
+  labs(title = 'pEC50',
+       subtitle = 'SVM\n test data') +
+  ggthemes::theme_tufte()
+p <- p + geom_abline(intercept = 0,
+                     slope = 1,
+                     colour = 'red')
+p
+
+y_predict <- predict(svmModel, newdata = X_train_curated) %>%
+  data.frame()
+colnames(y_predict) <- c('Predicted')
+
+data2plot <- cbind(y_train, y_predict)
+
+summary(lm(Observed ~ Predicted, data = data2plot))
+
+## Calculate parameters of the SVR model
+
+# Find value of W
+train_W = t(svmModel$coefs) %*% svmModel$SV
+
+# Find value of b
+train_b = svmModel$rho
+
+trainRMSE = rmse(data2plot$Predicted, data2plot$Observed)
+
+p <-
+  ggplot(data2plot, aes(Predicted, Observed)) +
+  geom_point(colour = "blue", size = 2) +
+  coord_equal() +
+  # xlim(c(0, 3.5)) + ylim(c(0, 3.5)) +
+  geom_smooth(method='lm') +
+  labs(title = 'pEC50',
+       subtitle = 'SVM\n training data') +
+  ggthemes::theme_tufte()
+p <- p + geom_abline(intercept = 0,
+                     slope = 1,
+                     colour = 'red')
+p
+```
