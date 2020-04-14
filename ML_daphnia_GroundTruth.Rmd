@@ -1,11 +1,16 @@
 ---
 title: 'ML: Daphnia'
 subtitle: '... narrative ground truth ...'
-output: pdf_document
 date: "`r Sys.Date()`"
+output: html_document
 ---
 
+# Preliminaries
+* Load required libraries  
+* Establish path to Python executable
 ```{r setup, echo = FALSE, message = FALSE, warning = FALSE}
+library(knitr)
+library(kableExtra)
 library(tidyverse)
 library(readxl)
 library(janitor)
@@ -24,6 +29,7 @@ library(hydroGOF)
 set.seed(42)
 ```
 
+# Read data; retain salient records
 ```{r access_data, message = FALSE, warning = FALSE}
 path_to_data <- here('data', 'Khan_Chemosphere_229_8.xlsx')
 
@@ -32,7 +38,7 @@ df <-
   data.frame() %>%
   janitor::clean_names()
 
-names(df)
+# names(df)
 
 df <- df %>%
   select(cas_number, canonical_smiles, p_ec50_mol_l_daphnia) %>%
@@ -40,13 +46,18 @@ df <- df %>%
          'SMILES' = 'canonical_smiles',
          'pEC50' = 'p_ec50_mol_l_daphnia')
 
-head(df)
+# head(df)
+kable(df) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), font_size = 11) %>%
+  scroll_box(height = "200px")
 ```
-
+# Structure of data 
 ```{r}
 str(df)
 ```
-
+# Predictor calculation
+* RDKit
+* 200 predictors; continuous and count
 ```{python}
 import numpy as np
 import pandas as pd
@@ -56,7 +67,7 @@ from rdkit.ML.Descriptors import MoleculeDescriptors
 from scipy import stats
 
 df = r.df
-df.head()
+# df.head()
 
 nms = [x[0] for x in Descriptors._descList]
 calc = MoleculeDescriptors.MolecularDescriptorCalculator(nms)
@@ -73,16 +84,16 @@ for i in range(len(df)):
 df = df.replace([np.inf, -np.inf], np.nan)
 df = df.dropna()
 df = df.reset_index(drop=True)
-
-df.head()
-df.shape
 ```
 
 ```{r}
 df <- py$df
-dim(df)
+kable(df) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), font_size = 11) %>%
+  scroll_box(width = "500px", height = "200px")
 ```
-
+# Build training set and test set
+* stratified sampling: 0.8 training set; 0.2 test set
 ```{r}
 in_train <-
   createDataPartition(df$pEC50
@@ -138,14 +149,31 @@ ggsave('daphnia_train_test.png', daphnia_train_test, width = 4.0, height = 2.5, 
 ```{r}
 dim(train)
 summary(train$pEC50)
-hist(train$pEC50)
+ggplot(train, aes(x = pEC50)) +
+  geom_histogram(
+    aes(y = ..density..),
+    # Histogram with density instead of count on y-axis
+    binwidth = 0.5,
+    colour = "black",
+    fill = "white"
+  ) +
+  geom_density(alpha = .2, fill = "#FF6666")  # Overlay with transparent density plot
 dim(test)
 summary(test$pEC50)
-hist(test$pEC50)
+ggplot(test, aes(x = pEC50)) +
+  geom_histogram(
+    aes(y = ..density..),
+    # Histogram with density instead of count on y-axis
+    binwidth = 0.5,
+    colour = "black",
+    fill = "white"
+  ) +
+  geom_density(alpha = .2, fill = "#FF6666")  # Overlay with transparent density plo
 ```
-
+# Near-zero variance predictors
 ```{r}
 nzv <- nearZeroVar(X_train, freqCut = 100 / 0)
+length(nzv)
 names(X_train[ , nzv])
 X_train_nzv <- X_train[ , -nzv]
 X_test_nzv <- X_test[ , -nzv]
@@ -158,6 +186,7 @@ correlations <- cor(X_train_nzv)
 corrplot(correlations, order = "hclust", tl.cex = 0.25)
 
 highCorr <- findCorrelation(correlations, cutoff = 0.8)
+length(highCorr)
 names(X_train_nzv[ , highCorr])
 X_train_curated <- X_train_nzv[ , -highCorr]
 X_test_curated <- X_test_nzv[ , -highCorr]
@@ -170,7 +199,7 @@ corrplot(correlations, order = "hclust", tl.cex = 0.5)
 names(X_train_curated)
 ```
 
-## Random Forest
+# Random Forest
 
 ```{r}
 trainSet <- cbind(y_train, X_train_curated) %>%
@@ -235,7 +264,7 @@ p <- p + geom_abline(intercept = 0,
 p
 ```
 
-## SVM regression
+# SVM regression
 
 ```{r}
 svmModel = svm(pEC50 ~ .,
